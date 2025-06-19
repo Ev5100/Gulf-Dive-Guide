@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOAA Buoy 42019 Data</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="forecast.js"></script>
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #1a202c; /* Dark charcoal background */
+            color: #e2e8f0; /* Light grey text */
+        }
+        .neon-blue-text {
+            color: #00ffff; /* Neon blue */
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.7), 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        .data-card {
+            background-color: #2d3748; /* Darker grey for panels */
+            border: 1px solid #00ffff; /* Neon blue border */
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .data-value {
+            font-size: 1.875rem; /* text-3xl */
+            font-weight: 700; /* font-bold */
+            color: #00ffff; /* Neon blue */
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.7);
+        }
+        .data-label {
+            color: #e2e8f0; /* Light grey text */
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+        .timestamp {
+            color: #00ffff; /* Neon blue */
+            font-size: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: right;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.7);
+        }
+        .header-title {
+            font-size: 2.25rem; /* text-4xl */
+            font-weight: 700; /* font-bold */
+            color: #00ffff; /* Neon blue */
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.7), 0 0 10px rgba(0, 255, 255, 0.5);
+            margin-bottom: 1rem;
+        }
+        .coordinates-info {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background-color: rgba(45, 55, 72, 0.9);
+            border: 1px solid #00ffff;
+            border-radius: 4px;
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+        .coordinates-info h3 {
+            color: #00ffff;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+            padding-bottom: 0.25rem;
+        }
+        .coordinates-info .location {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+            padding: 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+        .coordinates-info .location:hover {
+            background-color: rgba(0, 255, 255, 0.1);
+            border-color: #00ffff;
+            transform: translateX(4px);
+        }
+        .coordinates-info .location:active {
+            background-color: rgba(0, 255, 255, 0.2);
+            transform: translateX(2px);
+        }
+        .coordinates-info .location-name {
+            color: #00ffff;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .coordinates-info .location-name::before {
+            content: "→";
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .coordinates-info .location:hover .location-name::before {
+            opacity: 1;
+        }
+        .coordinates-info .location-coords {
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+        .compass {
+            width: 100px;
+            height: 100px;
+            background-color: #4a5568;
+            border-radius: 50%;
+            border: 2px solid #00ffff;
+            position: relative;
+            margin: 1rem auto;
+        }
+        .compass-needle {
+            width: 2px;
+            height: 40px;
+            background-color: #00ffff;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(0deg);
+            transition: transform 0.5s ease-out;
+        }
+        .compass-center {
+            width: 10px;
+            height: 10px;
+            background-color: #e2e8f0;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .chart-container {
+            position: relative;
+            height: 60px; /* Adjusted height for charts */
+            width: 100%;
+        }
+        #map {
+            width: 100%;
+            height: 400px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #00ffff;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+        .current-arrow {
+            stroke: #00ffff;
+            stroke-width: 2;
+            fill: none;
+        }
+        .current-arrow-head {
+            fill: #00ffff;
+        }
+        .wind-particle {
+            fill: #00ffff;
+            opacity: 0.6;
+        }
+        .custom-marker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .marker-tooltip {
+            position: absolute;
+            background-color: rgba(45, 55, 72, 0.9);
+            color: #e2e8f0;
+            border: 1px solid #00ffff;
+            border-radius: 4px;
+            padding: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1001;
+            white-space: nowrap;
+        }
+        .custom-marker:hover .marker-tooltip {
+            opacity: 1;
+        }
+        .marker-tooltip h3 {
+            color: #00ffff;
+            margin-bottom: 4px;
+            font-size: 0.875rem;
+        }
+        .marker-tooltip p {
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="header-title">WEATHER DASHBOARD- NOAA BUOY 42019</h1>
+            <div class="flex flex-col items-end">
+                <div class="flex items-center mb-2">
+                    <span class="text-sm text-gray-400 mr-2">Units:</span>
+                    <button id="unitToggleBtn" class="px-3 py-1 rounded bg-gray-800 border border-cyan-500 text-cyan-300 font-bold shadow hover:bg-cyan-900 transition-all" data-unit="imperial">Imperial</button>
+                </div>
+                <div class="text-right">
+                    <p class="timestamp">LAST UPDATE: <span id="serverLastUpdate">--:--</span></p>
+                    <p class="timestamp">NEXT REFRESH: <span id="nextRefreshCountdown">--:--</span></p>
+                    <p class="text-sm text-gray-400">LIVE GULF DASHBOARD</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main content area with map and side panels -->
+        <div class="grid grid-cols-12 gap-4 mb-4">
+            <!-- Left side panel - Data History -->
+            <div class="col-span-2">
+                <div class="data-card h-full">
+                    <div class="data-label">DATA HISTORY</div>
+                    <div class="text-gray-400 text-sm mb-2">Past 48 hours of measurements</div>
+                    <div class="chart-container" style="height: 500px; width: 100%;">
+                        <canvas id="dataHistoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center area - Map and Wind Info -->
+            <div class="col-span-8 relative">
+                <div class="data-card h-full p-0">
+                    <iframe id="earthMap" 
+                            src="https://earth.nullschool.net/#current/ocean/surface/currents/orthographic=-95.34,27.91,5000/loc=-95.34,27.91" 
+                            style="width: 100%; height: 600px; border: none; border-radius: 8px; position: relative; z-index: 1;"
+                            allowfullscreen
+                            allow="geolocation"
+                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms">
+                    </iframe>
+
+                    <!-- Coordinates Info Display -->
+                    <div class="coordinates-info">
+                        <h3>Key Locations</h3>
+                        <div class="location" onclick="centerMap(27.91, -95.34)">
+                            <span class="location-name">NOAA Buoy 42019</span>
+                            <span class="location-coords">27.91°N, 95.34°W</span>
+                        </div>
+                        <div class="location" onclick="centerMap(28.44, -94.29)">
+                            <span class="location-name">Kraken Shipwreck</span>
+                            <span class="location-coords">28.44°N, 94.29°W</span>
+                        </div>
+                        <div class="location" onclick="centerMap(28.17, -94.30)">
+                            <span class="location-name">Stetson Bank</span>
+                            <span class="location-coords">28.17°N, 94.30°W</span>
+                        </div>
+                    </div>
+
+                    <!-- Zoom Controls -->
+                    <div class="absolute top-4 right-4 flex flex-col gap-2" style="z-index: 1000;">
+                        <button onclick="zoomMap(1)" class="w-8 h-8 bg-gray-800 bg-opacity-80 hover:bg-opacity-100 text-white rounded-full flex items-center justify-center text-xl font-bold border border-cyan-500 shadow-lg transition-all duration-200">
+                            +
+                        </button>
+                        <button onclick="zoomMap(-1)" class="w-8 h-8 bg-gray-800 bg-opacity-80 hover:bg-opacity-100 text-white rounded-full flex items-center justify-center text-xl font-bold border border-cyan-500 shadow-lg transition-all duration-200">
+                            -
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right side panel - Forecast -->
+            <div class="col-span-2">
+                <div class="data-card h-full">
+                    <div class="data-label">NOAA FORECAST</div>
+                    <div id="forecastData" class="space-y-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Row Cards -->
+        <div class="grid grid-cols-3 gap-4 mt-4">
+            <!-- Wind Card -->
+            <div class="data-card">
+                <div class="data-label">WIND</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <div class="data-label">Speed</div>
+                        <div class="data-value" id="windSpeedText">-- knots</div>
+                        <div class="chart-container" style="height: 80px;">
+                            <canvas id="windSpeedChart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="data-label">Direction</div>
+                        <div class="data-value text-center">
+                            <div class="compass">
+                                <div class="compass-needle" id="windDirectionNeedle"></div>
+                                <div class="compass-center"></div>
+                            </div>
+                            <span id="windDirectionText">--</span>°
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Temperature Card -->
+            <div class="data-card">
+                <div class="data-label">TEMPERATURE</div>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">WATER:</span>
+                        <span class="data-value" id="waterTemp">--°C</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">AIR:</span>
+                        <span class="data-value" id="airTemp">--°C</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wave Height Card -->
+            <div class="data-card">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="data-label">WAVE DATA</div>
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <div class="data-label text-sm">Height:</div>
+                            <div class="data-value text-lg" id="waveHeightText">-- m</div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="data-label text-sm">Dominant Period:</div>
+                            <div class="data-value text-lg" id="dominantPeriodText">-- s</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-2">
+                    <div class="chart-container" style="height: 90px;">
+                        <canvas id="waveHeightChart"></canvas>
+                    </div>
+                    <div class="chart-container" style="height: 90px;">
+                        <canvas id="dominantPeriodChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SOURCES BUTTON & MODAL -->
+    <button id="sourcesBtn" class="fixed bottom-6 left-6 z-50 px-4 py-2 bg-gray-900 border border-cyan-500 text-cyan-300 font-bold rounded shadow-lg hover:bg-cyan-900 transition-all" style="box-shadow: 0 0 10px #00ffff55;">
+        Sources
+    </button>
+    <div id="sourcesModal" class="fixed inset-0 flex items-end md:items-center justify-start md:justify-center bg-black bg-opacity-60 hidden" style="backdrop-filter: blur(2px); z-index: 2000;">
+        <div class="bg-gray-900 border-2 border-cyan-500 rounded-lg shadow-xl p-8 m-4 max-w-md w-full relative animate-fadeInUp" style="box-shadow: 0 0 24px #00ffff55; z-index: 2100;">
+            <button id="closeSourcesModal" class="absolute top-2 right-2 text-cyan-300 hover:text-cyan-500 text-2xl font-bold">&times;</button>
+            <h2 class="text-2xl font-bold neon-blue-text mb-4">Data Sources</h2>
+            <ul class="space-y-3 text-lg">
+                <li><a href="https://www.ndbc.noaa.gov/" target="_blank" rel="noopener" class="text-cyan-300 hover:underline">NOAA Buoy Data</a></li>
+                <li><a href="https://www.weather.gov/" target="_blank" rel="noopener" class="text-cyan-300 hover:underline">NOAA Forecast</a></li>
+                <li><a href="https://earth.nullschool.net/" target="_blank" rel="noopener" class="text-cyan-300 hover:underline">Nullschool Earth Map</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let waveHeightChart, windSpeedChart;
+        let dataHistoryChart;
+        let dominantPeriodChart = null;
+        let lastUpdateTime = new Date();
+        let refreshInterval = 600000; // 10 minutes in milliseconds
+        let currentZoom = 5000; // Initial zoom level (maximum zoom)
+        let isZooming = false; // Flag to prevent rapid zooming
+
+        // Unit toggle logic
+        const UNIT_KEY = 'dashboardUnits';
+        let currentUnit = localStorage.getItem(UNIT_KEY) || 'imperial';
+
+        function setUnit(unit) {
+            currentUnit = unit;
+            localStorage.setItem(UNIT_KEY, unit);
+            const btn = document.getElementById('unitToggleBtn');
+            if (btn) {
+                btn.textContent = unit === 'imperial' ? 'Imperial' : 'Metric';
+                btn.setAttribute('data-unit', unit);
+            }
+            // Re-render all data and charts
+            if (window.lastBuoyData) {
+                updateUI(window.lastBuoyData);
+                updateDataHistoryChart(window.lastBuoyData.historical);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('unitToggleBtn');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    setUnit(currentUnit === 'imperial' ? 'metric' : 'imperial');
+                });
+                setUnit(currentUnit); // Initialize
+            }
+        });
+
+        // Conversion helpers
+        function toF(c) { return c == null ? null : (c * 9/5) + 32; }
+        function toC(f) { return f == null ? null : (f - 32) * 5/9; }
+        function toFt(m) { return m == null ? null : m * 3.28084; }
+        function toM(ft) { return ft == null ? null : ft / 3.28084; }
+        function toMph(ms) { return ms == null ? null : ms * 2.23694; }
+        function toKnots(ms) { return ms == null ? null : ms * 1.94384; }
+        function toMs(mph) { return mph == null ? null : mph / 2.23694; }
+
+        function zoomMap(direction) {
+            if (isZooming) return; // Prevent rapid zooming
+            isZooming = true;
+
+            const map = document.getElementById('earthMap');
+            const zoomStep = 200; // Larger step for more noticeable zoom
+            const newZoom = Math.max(100, Math.min(5000, currentZoom + (direction * zoomStep))); // Maximum zoom of 5000
+            
+            if (newZoom !== currentZoom) {
+                currentZoom = newZoom;
+                updateMapView();
+            }
+
+            // Reset zooming flag after a short delay
+            setTimeout(() => {
+                isZooming = false;
+            }, 300);
+        }
+
+        function centerMap(lat, lon) {
+            const map = document.getElementById('earthMap');
+            // Add timestamp to force refresh of data
+            const timestamp = new Date().getTime();
+            // Use the same URL structure as nullschool's interactive map
+            const baseUrl = `https://earth.nullschool.net/#current/ocean/surface/currents/orthographic=${lon},${lat},${currentZoom}/loc=${lon},${lat}/overlay=currents/grid=vector/`;
+            map.src = baseUrl;
+        }
+
+        function updateMapView() {
+            const map = document.getElementById('earthMap');
+            // Add timestamp to force refresh of data
+            const timestamp = new Date().getTime();
+            // Use the same URL structure as nullschool's interactive map
+            const baseUrl = `https://earth.nullschool.net/#current/ocean/surface/currents/orthographic=-95.34,27.91,${currentZoom}/loc=-95.34,27.91/overlay=currents/grid=vector/`;
+            map.src = baseUrl;
+        }
+
+        // Add function to refresh map data periodically
+        function refreshMapData() {
+            updateMapView();
+        }
+
+        function updateServerStatus() {
+            const now = new Date();
+            const timeSinceLastUpdate = now - lastUpdateTime;
+            const timeUntilNextUpdate = refreshInterval - timeSinceLastUpdate;
+
+            // Update last update time
+            document.getElementById('serverLastUpdate').textContent = 
+                lastUpdateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            // Update countdown
+            const minutes = Math.floor(timeUntilNextUpdate / 60000);
+            const seconds = Math.floor((timeUntilNextUpdate % 60000) / 1000);
+            document.getElementById('nextRefreshCountdown').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        async function fetchBuoyData() {
+            try {
+                const response = await fetch('/api/buoy-data');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                if (!data || !data.latest) {
+                    throw new Error('Invalid data received from server');
+                }
+
+                lastUpdateTime = new Date();
+                updateUI(data);
+                updateDataHistoryChart(data.historical);
+                updateServerStatus();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('serverLastUpdate').textContent = 'Error fetching data';
+                // Update other UI elements to show error state
+                document.getElementById('airTemp').textContent = '--°C';
+                document.getElementById('waterTemp').textContent = '--°C';
+                document.getElementById('waveHeightText').textContent = '-- m';
+                document.getElementById('windSpeedText').textContent = '-- knots';
+                document.getElementById('windDirectionText').textContent = '--';
+            }
+        }
+
+        function updateUI(data) {
+            window.lastBuoyData = data;
+            console.log('Data received in updateUI:', data);
+            // Update timestamp
+            try {
+                const timestamp = data.latest.timestamp;
+                if (!timestamp) {
+                    console.warn('No timestamp provided for update');
+                    document.getElementById('serverLastUpdate').textContent = 'No data available';
+                } else {
+                    const date = new Date(timestamp);
+                    if (isNaN(date.getTime())) {
+                        console.warn('Invalid timestamp:', timestamp);
+                        document.getElementById('serverLastUpdate').textContent = 'Invalid timestamp';
+                    } else {
+                        const formattedDate = date.toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: true
+                        });
+                        document.getElementById('serverLastUpdate').textContent = formattedDate;
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating last updated timestamp:', error);
+                document.getElementById('serverLastUpdate').textContent = 'Error';
+            }
+            
+            // Temperatures
+            let air = data.latest.airTemperature;
+            let water = data.latest.waterTemperature;
+            if (currentUnit === 'imperial') {
+                air = toF(air);
+                water = toF(water);
+            }
+            document.getElementById('airTemp').textContent = `${air != null ? air.toFixed(1) : '--'}°${currentUnit === 'imperial' ? 'F' : 'C'}`;
+            document.getElementById('waterTemp').textContent = `${water != null ? water.toFixed(1) : '--'}°${currentUnit === 'imperial' ? 'F' : 'C'}`;
+
+            // Wave Height
+            let wave = data.latest.waveHeight;
+            if (currentUnit === 'imperial') wave = toFt(wave);
+            document.getElementById('waveHeightText').textContent = `${wave != null ? wave.toFixed(1) : '--'} ${currentUnit === 'imperial' ? 'ft' : 'm'}`;
+            
+            console.log('Historical Data for Charts:', data.historical);
+            updateWaveHeightChart(data.historical);
+            updateDominantPeriodChart(data.historical);
+
+            // Wind Speed
+            let wind = data.latest.windSpeed;
+            let windDisplay = '--';
+            if (wind != null) {
+                windDisplay = currentUnit === 'imperial' ? `${toMph(wind).toFixed(1)} mph` : `${wind.toFixed(1)} m/s`;
+            }
+            document.getElementById('windSpeedText').textContent = windDisplay;
+            console.log('Historical Wind Speed Data before chart update:', data.historical.map(entry => ({ timestamp: entry.timestamp, windSpeed: entry.windSpeed })));
+            updateWindSpeedChart(data.historical);
+
+            // Wind Direction (Compass and Textual)
+            const windDirection = data.latest.windDirection;
+            const windDirectionText = getCardinalDirection(windDirection);
+            document.getElementById('windDirectionNeedle').style.transform = `translate(-50%, -100%) rotate(${windDirection}deg)`;
+            document.getElementById('windDirectionText').textContent = `${windDirection || '--'}° ${windDirectionText}`;
+
+            // Dominant Period
+            document.getElementById('dominantPeriodText').textContent = `${data.latest.dominantWavePeriod?.toFixed(1) || '--'} s`;
+        }
+
+        function getCardinalDirection(angle) {
+            if (angle === null) return '--';
+            const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            const index = Math.round(angle / 22.5) % 16;
+            return directions[index];
+        }
+
+        function updateWaveHeightChart(historicalData) {
+            const filteredData = historicalData.filter((_, index) => index % 3 === 0);
+            let waveHeightData = filteredData.map(entry => currentUnit === 'imperial' ? toFt(entry.waveHeight) : entry.waveHeight);
+            
+            const labels = filteredData.map(entry => {
+                const d = new Date(entry.timestamp);
+                return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+            });
+
+            if (waveHeightChart) {
+                waveHeightChart.data.labels = labels;
+                waveHeightChart.data.datasets[0].data = waveHeightData;
+                waveHeightChart.data.datasets[0].label = `Wave Height (${currentUnit === 'imperial' ? 'ft' : 'm'})`;
+                waveHeightChart.update();
+            } else {
+                const ctx = document.getElementById('waveHeightChart').getContext('2d');
+                if (!ctx) {
+                    console.error('Failed to get 2D context for wave height chart canvas!');
+                    return;
+                }
+                waveHeightChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `Wave Height (${currentUnit === 'imperial' ? 'ft' : 'm'})`,
+                            data: waveHeightData,
+                            borderColor: '#00ffff',
+                            backgroundColor: 'rgba(0, 255, 255, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 2,
+                            pointRadius: 1,
+                            pointHoverRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                backgroundColor: 'rgba(45, 55, 72, 0.9)',
+                                titleColor: '#00ffff',
+                                bodyColor: '#e2e8f0',
+                                borderColor: '#00ffff',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            x: {
+                                display: true,
+                                ticks: { 
+                                    color: '#e2e8f0', 
+                                    font: { family: 'Orbitron', size: 8 },
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    maxTicksLimit: 6
+                                },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                display: true,
+                                ticks: { 
+                                    color: '#e2e8f0', 
+                                    font: { family: 'Orbitron', size: 8 }
+                                },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' },
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateWindSpeedChart(historicalData) {
+            let windSpeedData = historicalData.map(entry => currentUnit === 'imperial' ? toMph(entry.windSpeed) : entry.windSpeed);
+            
+            const labels = historicalData.map(entry => {
+                const d = new Date(entry.timestamp);
+                return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+            });
+
+            if (windSpeedChart) {
+                windSpeedChart.data.labels = labels;
+                windSpeedChart.data.datasets[0].data = windSpeedData;
+                windSpeedChart.data.datasets[0].label = `Wind Speed (${currentUnit === 'imperial' ? 'mph' : 'm/s'})`;
+                windSpeedChart.update();
+            } else {
+                const ctx = document.getElementById('windSpeedChart').getContext('2d');
+                if (!ctx) {
+                    console.error('Failed to get 2D context for wind speed chart canvas!');
+                    return;
+                }
+                windSpeedChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `Wind Speed (${currentUnit === 'imperial' ? 'mph' : 'm/s'})`,
+                            data: windSpeedData,
+                            borderColor: '#ff6b6b',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { display: false },
+                            y: { display: false }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateDataHistoryChart(historicalData) {
+            const sortedData = [...historicalData].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            const filteredData = sortedData.filter((_, index) => index % 2 === 0);
+            const datasets = [
+                {
+                    label: `Wave Height (${currentUnit === 'imperial' ? 'ft' : 'm'})`,
+                    data: filteredData.map(entry => currentUnit === 'imperial' ? toFt(entry.waveHeight) : entry.waveHeight),
+                    borderColor: '#00ffff',
+                    backgroundColor: 'rgba(0, 255, 255, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.3
+                },
+                {
+                    label: `Wind Speed (${currentUnit === 'imperial' ? 'mph' : 'm/s'})`,
+                    data: filteredData.map(entry => currentUnit === 'imperial' ? toMph(entry.windSpeed) : entry.windSpeed),
+                    borderColor: '#ff6b6b',
+                    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.3
+                },
+                {
+                    label: `Air Temperature (°${currentUnit === 'imperial' ? 'F' : 'C'})`,
+                    data: filteredData.map(entry => currentUnit === 'imperial' ? toF(entry.airTemperature) : entry.airTemperature),
+                    borderColor: '#f3e79b',
+                    backgroundColor: 'rgba(243, 231, 155, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.3
+                },
+                {
+                    label: `Water Temperature (°${currentUnit === 'imperial' ? 'F' : 'C'})`,
+                    data: filteredData.map(entry => currentUnit === 'imperial' ? toF(entry.waterTemperature) : entry.waterTemperature),
+                    borderColor: '#6a93cb',
+                    backgroundColor: 'rgba(106, 147, 203, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.3
+                },
+                {
+                    label: 'Dominant Period (s)',
+                    data: filteredData.map(entry => entry.dominantWavePeriod),
+                    borderColor: '#9d4edd',
+                    backgroundColor: 'rgba(157, 78, 221, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.3
+                }
+            ];
+
+            if (dataHistoryChart) {
+                dataHistoryChart.data.datasets = datasets;
+                dataHistoryChart.update();
+            } else {
+                const ctx = document.getElementById('dataHistoryChart').getContext('2d');
+                if (!ctx) {
+                    console.error('Failed to get 2D context for data history chart canvas!');
+                    return;
+                }
+                dataHistoryChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: filteredData.map(entry => {
+                            const d = new Date(entry.timestamp);
+                            return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+                        }),
+                        datasets: datasets
+                    },
+                    options: {
+                        indexAxis: 'y', // This makes the chart vertical
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                position: 'top', // Move x-axis to top
+                                ticks: { 
+                                    color: '#e2e8f0', 
+                                    font: { family: 'Orbitron', size: 8 },
+                                    maxRotation: 0,
+                                    minRotation: 0,
+                                    maxTicksLimit: 8
+                                },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                position: 'right', // Move y-axis to right
+                                ticks: { 
+                                    color: '#e2e8f0', 
+                                    font: { family: 'Orbitron', size: 8 },
+                                    maxRotation: 0,
+                                    minRotation: 0
+                                },
+                                grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                align: 'start',
+                                labels: {
+                                    color: '#e2e8f0',
+                                    font: { family: 'Orbitron', size: 10 },
+                                    boxWidth: 12,
+                                    padding: 8
+                                }
+                            },
+                            tooltip: {
+                                mode: 'nearest',
+                                intersect: true,
+                                backgroundColor: 'rgba(45, 55, 72, 0.9)',
+                                titleColor: '#00ffff',
+                                bodyColor: '#e2e8f0',
+                                borderColor: '#00ffff',
+                                borderWidth: 1,
+                                padding: 8,
+                                displayColors: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.dataset.label || '';
+                                        const value = context.parsed.x;
+                                        return `${label}: ${value.toFixed(1)}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateDominantPeriodChart(historicalData) {
+            console.log('Entering updateDominantPeriodChart. dominantPeriodChart is:', dominantPeriodChart);
+            const filteredData = historicalData.filter((_, index) => index % 3 === 0);
+            
+            const dominantPeriodData = filteredData.map(entry => entry.dominantWavePeriod);
+            const labels = filteredData.map(entry => {
+                const d = new Date(entry.timestamp);
+                return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+            });
+
+            if (dominantPeriodChart) {
+                console.log('dominantPeriodChart is already initialized. Updating data.');
+                dominantPeriodChart.data.labels = labels;
+                dominantPeriodChart.data.datasets[0].data = dominantPeriodData;
+                dominantPeriodChart.update();
+            } else {
+                console.log('dominantPeriodChart is not initialized. Attempting to create new chart.');
+                const canvasElement = document.getElementById('dominantPeriodChart');
+                console.log('Canvas element for dominantPeriodChart:', canvasElement);
+                if (!canvasElement) {
+                    console.error('Canvas element with ID "dominantPeriodChart" not found!');
+                    return;
+                }
+                const ctx = canvasElement.getContext('2d');
+                console.log('Canvas 2D context (ctx) for dominantPeriodChart:', ctx);
+                if (!ctx) {
+                    console.error('Failed to get 2D context for dominant period chart canvas on first init!');
+                    return;
+                }
+                dominantPeriodChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Dominant Period (s)',
+                            data: dominantPeriodData,
+                            borderColor: '#ff6b6b',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 2,
+                            pointRadius: 1,
+                            pointHoverRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                backgroundColor: 'rgba(45, 55, 72, 0.9)',
+                                titleColor: '#ff6b6b',
+                                bodyColor: '#e2e8f0',
+                                borderColor: '#ff6b6b',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            x: {
+                                display: true,
+                                ticks: { 
+                                    color: '#e2e8f0', 
+                                    font: { family: 'Orbitron', size: 8 },
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    maxTicksLimit: 6
+                                },
+                                grid: { color: 'rgba(255, 107, 107, 0.1)' }
+                            },
+                            y: {
+                                display: true,
+                                ticks: { 
+                                    color: '#e2e8f0', 
+                                    font: { family: 'Orbitron', size: 8 }
+                                },
+                                grid: { color: 'rgba(255, 107, 107, 0.1)' },
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Update server status every second
+        setInterval(updateServerStatus, 1000);
+
+        // Initial data fetch
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchBuoyData();
+            // Refresh map data every 5 minutes
+            setInterval(refreshMapData, 300000);
+        });
+
+        // Auto-refresh every 10 minutes
+        setInterval(fetchBuoyData, refreshInterval);
+
+        // SOURCES MODAL LOGIC
+        const sourcesBtn = document.getElementById('sourcesBtn');
+        const sourcesModal = document.getElementById('sourcesModal');
+        const closeSourcesModal = document.getElementById('closeSourcesModal');
+
+        sourcesBtn.addEventListener('click', () => {
+            sourcesModal.classList.remove('hidden');
+        });
+        closeSourcesModal.addEventListener('click', () => {
+            sourcesModal.classList.add('hidden');
+        });
+        sourcesModal.addEventListener('click', (e) => {
+            if (e.target === sourcesModal) {
+                sourcesModal.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
